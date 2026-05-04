@@ -26,16 +26,16 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.rendering.block.Block;
 import org.xwiki.rendering.block.CompositeBlock;
 import org.xwiki.rendering.block.FormatBlock;
 import org.xwiki.rendering.block.MacroBlock;
 import org.xwiki.rendering.block.ParagraphBlock;
-import org.xwiki.rendering.block.WordBlock;
 import org.xwiki.rendering.listener.Format;
+import org.xwiki.rendering.macro.MacroContentParser;
 import org.xwiki.rendering.macro.MacroExecutionException;
+import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.rendering.transformation.MacroTransformationContext;
 import org.xwiki.skinx.SkinExtension;
 
@@ -64,7 +64,7 @@ public class StatusMacro extends AbstractProMacro<StatusMacroParameters>
     private SkinExtension ssx;
 
     @Inject
-    private Logger logger;
+    private MacroContentParser contentParser;
 
     /**
      * Create and initialize the descriptor of the macro.
@@ -84,31 +84,27 @@ public class StatusMacro extends AbstractProMacro<StatusMacroParameters>
     protected List<Block> internalExecute(StatusMacroParameters parameters, String content,
         MacroTransformationContext context) throws MacroExecutionException
     {
-        try {
-            if (!context.isInline() && isEditMode(context)) {
-                // Construct a new macro block to replace the old one with the inline flag set to true.
-                MacroBlock oldMacroBlock = context.getCurrentMacroBlock();
-                MacroBlock replacement =
-                    new MacroBlock(oldMacroBlock.getId(), oldMacroBlock.getParameters(), oldMacroBlock.getContent(),
-                        true);
-                oldMacroBlock.getParent().replaceChild(new ParagraphBlock(List.of(replacement)), oldMacroBlock);
+        if (!context.isInline() && isEditMode(context)) {
+            // Construct a new macro block to replace the old one with the inline flag set to true.
+            MacroBlock oldMacroBlock = context.getCurrentMacroBlock();
+            MacroBlock replacement =
+                new MacroBlock(oldMacroBlock.getId(), oldMacroBlock.getParameters(), oldMacroBlock.getContent(), true);
+            oldMacroBlock.getParent().replaceChild(new ParagraphBlock(List.of(replacement)), oldMacroBlock);
 
-                // Add a parent to the old macro block as otherwise the MacroTransformation fails in XWiki < 16.5.0.
-                Block mockParent = new CompositeBlock();
-                mockParent.addChild(oldMacroBlock);
+            // Add a parent to the old macro block as otherwise the MacroTransformation fails in XWiki < 16.5.0.
+            Block mockParent = new CompositeBlock();
+            mockParent.addChild(oldMacroBlock);
 
-                return List.of();
-            }
-
-            StringBuilder cssClass = prepareCSS(parameters);
-
-            Map<String, String> blockParameters = Map.of("class", cssClass.toString());
-            WordBlock wordBlock = new WordBlock(getTitle(parameters));
-            return List.of(new FormatBlock(List.of(wordBlock), Format.NONE, blockParameters));
-        } catch (Exception e) {
-            logger.error("Failed to execute Status macro with parameters [{}].", parameters, e);
-            throw new RuntimeException(e);
+            return List.of();
         }
+
+        StringBuilder cssClass = prepareCSS(parameters);
+
+        Map<String, String> blockParameters = Map.of("class", cssClass.toString());
+        List<Block> blocks =
+            this.contentParser.parse(getTitle(parameters), Syntax.PLAIN_1_0, context, false, null, true).getChildren();
+        blocks = List.of(new FormatBlock(blocks, Format.NONE, blockParameters));
+        return blocks;
     }
 
     private String getTitle(StatusMacroParameters parameters)
