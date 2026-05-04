@@ -26,16 +26,16 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.rendering.block.Block;
 import org.xwiki.rendering.block.CompositeBlock;
 import org.xwiki.rendering.block.FormatBlock;
 import org.xwiki.rendering.block.MacroBlock;
 import org.xwiki.rendering.block.ParagraphBlock;
+import org.xwiki.rendering.block.WordBlock;
 import org.xwiki.rendering.listener.Format;
-import org.xwiki.rendering.macro.MacroContentParser;
 import org.xwiki.rendering.macro.MacroExecutionException;
-import org.xwiki.rendering.macro.MacroPreparationException;
 import org.xwiki.rendering.transformation.MacroTransformationContext;
 import org.xwiki.skinx.SkinExtension;
 
@@ -63,11 +63,8 @@ public class StatusMacro extends AbstractProMacro<StatusMacroParameters>
     @Named("ssx")
     private SkinExtension ssx;
 
-    /**
-     * Used to parse the content of the footnote.
-     */
     @Inject
-    private MacroContentParser contentParser;
+    private Logger logger;
 
     /**
      * Create and initialize the descriptor of the macro.
@@ -81,12 +78,6 @@ public class StatusMacro extends AbstractProMacro<StatusMacroParameters>
     public boolean supportsInlineMode()
     {
         return true;
-    }
-
-    @Override
-    public void prepare(MacroBlock macroBlock) throws MacroPreparationException
-    {
-        this.contentParser.prepareContentWiki(macroBlock);
     }
 
     @Override
@@ -112,11 +103,10 @@ public class StatusMacro extends AbstractProMacro<StatusMacroParameters>
             StringBuilder cssClass = prepareCSS(parameters);
 
             Map<String, String> blockParameters = Map.of("class", cssClass.toString());
-            List<Block> blocks = this.contentParser.parse(getTitle(parameters), context, false, true).getChildren();
-            blocks = List.of(new FormatBlock(blocks, Format.NONE, blockParameters));
-
-            return blocks;
+            WordBlock wordBlock = new WordBlock(getTitle(parameters));
+            return List.of(new FormatBlock(List.of(wordBlock), Format.NONE, blockParameters));
         } catch (Exception e) {
+            logger.error("Failed to execute Status macro with parameters [{}].", parameters, e);
             throw new RuntimeException(e);
         }
     }
